@@ -252,18 +252,18 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 
 // reset triggers a software reset using the RESET command
 func (adc *ADS1256) reset() error {
-	return adc.sendCommand(CmdRESET)
+	return adc.sendCommand(CMDRESET)
 }
 
 // Standby puts the device into standby mode, shutting down analog but leaving the oscillator running.
 func (adc *ADS1256) Standby() error {
-	return adc.sendCommand(CmdSTANDBY)
+	return adc.sendCommand(CMDSTANDBY)
 }
 
 // WakeUp from SYNC or STANDBY mode.
 func (adc *ADS1256) WakeUp() error {
 	// ADS1256 has two forms (0x00 or 0xFF). We'll just send 0x00 for clarity.
-	return adc.sendCommand(CmdWAKEUP)
+	return adc.sendCommand(CMDWAKEUP)
 }
 
 // PowerDown pulls the PWDN pin low if setPWDN is provided.
@@ -289,11 +289,11 @@ func (adc *ADS1256) SingleConversion() (int32, error) {
 	defer adc.mu.Unlock()
 
 	// SYNC
-	if err := adc.sendCommand(CmdSYNC); err != nil {
+	if err := adc.sendCommand(CMDSYNC); err != nil {
 		return 0, err
 	}
 	// WAKEUP
-	if err := adc.sendCommand(CmdWAKEUP); err != nil {
+	if err := adc.sendCommand(CMDWAKEUP); err != nil {
 		return 0, err
 	}
 	// Wait for DRDY
@@ -320,7 +320,7 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 	defer adc.setCSHigh()
 
 	// Send RDATA
-	_, err := adc.spiWrite([]byte{CmdRDATA})
+	_, err := adc.spiWrite([]byte{CMDRDATA})
 	if err != nil {
 		return 0, err
 	}
@@ -354,7 +354,7 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 
 	// If in continuous read mode, must send SDATAC first
 	if adc.continuousMode {
-		if _, err := adc.spiWrite([]byte{CmdSDATAC}); err != nil {
+		if _, err := adc.spiWrite([]byte{CMDSDATAC}); err != nil {
 			return err
 		}
 		adc.continuousMode = false
@@ -363,7 +363,7 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 	}
 
 	// WREG: 0x50 + regAddr
-	cmd := byte(CmdWREG | (regAddr & 0x0F))
+	cmd := byte(CMDWREG | (regAddr & 0x0F))
 	// second byte: # of registers -1. We only do one register => 0
 	out := []byte{cmd, 0x00, value}
 	if _, err := adc.spiWrite(out); err != nil {
@@ -390,7 +390,7 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 
 	// If in continuous read mode, must send SDATAC first
 	if adc.continuousMode {
-		if _, err := adc.spiWrite([]byte{CmdSDATAC}); err != nil {
+		if _, err := adc.spiWrite([]byte{CMDSDATAC}); err != nil {
 			return 0, err
 		}
 		adc.continuousMode = false
@@ -398,7 +398,7 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 	}
 
 	// RREG: 0x10 + regAddr
-	cmd := byte(CmdRREG | (regAddr & 0x0F))
+	cmd := byte(CMDRREG | (regAddr & 0x0F))
 	// 2nd byte => # of registers -1 => 0
 	out := []byte{cmd, 0x00}
 	if _, err := adc.spiWrite(out); err != nil {
@@ -439,9 +439,9 @@ func (adc *ADS1256) sendCommand(cmd byte) error {
 	defer adc.setCSHigh()
 
 	// If switching out of continuous read:
-	if adc.continuousMode && cmd != CmdRDATAC {
-		if cmd != CmdRESET { // if reset is called, it also ends continuous mode
-			if _, err := adc.spiWrite([]byte{CmdSDATAC}); err != nil {
+	if adc.continuousMode && cmd != CMDRDATAC {
+		if cmd != CMDRESET { // if reset is called, it also ends continuous mode
+			if _, err := adc.spiWrite([]byte{CMDSDATAC}); err != nil {
 				return err
 			}
 			adc.continuousMode = false
@@ -456,17 +456,17 @@ func (adc *ADS1256) sendCommand(cmd byte) error {
 	}
 
 	// If we just sent RDATAC
-	if cmd == CmdRDATAC {
+	if cmd == CMDRDATAC {
 		adc.continuousMode = true
 	}
 
 	// Some commands need extra wait or wait for DRDY
 	switch cmd {
-	case CmdRESET, CmdSELFCAL, CmdSELFOCAL, CmdSELFGCAL,
-		CmdSYSOCAL, CmdSYSGCAL, CmdSTANDBY:
+	case CMDRESET, CMDSELFCAL, CMDSELFOCAL, CMDSELFGCAL,
+		CMDSYSOCAL, CMDSYSGCAL, CMDSTANDBY:
 		// Must wait for DRDY after these commands.
 		// STANDBY won't come out until WAKEUP, so you might not wait DRDY for that.
-		if cmd == CmdSTANDBY {
+		if cmd == CMDSTANDBY {
 			return nil
 		}
 		if adc.waitDRDY != nil {
