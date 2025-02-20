@@ -15,11 +15,11 @@ type SPI interface {
 
 // ADS1256 provides high-level control over a TI ADS1256 ADC.
 //
-// It uses an io.ReadWriter for SPI communication and simple callbacks/interfaces
+// It uses an [io.ReadWriter] for SPI communication and simple callbacks/interfaces
 // for DRDY and PWDN pin handling. You can adapt it further for your own GPIO usage.
 type ADS1256 struct {
-	mu sync.Mutex // Synchronize concurrent operations
-	// SPI HardwareInterface
+	mu  sync.Mutex // Synchronize concurrent operations
+	spi SPI        // SPI interface
 
 	waitDRDY func() error     // Called to wait for DRDY = LOW
 	setPWDN  func(level bool) // Drive PWDN pin. level=true => high, etc.
@@ -86,21 +86,21 @@ const (
 
 // Command Opcodes
 const (
-	CmdWakeUp   = 0x00
-	CmdRDATA    = 0x01
-	CmdRDATAC   = 0x03
-	CmdSDATAC   = 0x0F
-	CmdRREG     = 0x10 // 0x10 + (reg & 0x0F)
-	CmdWREG     = 0x50 // 0x50 + (reg & 0x0F)
-	CmdSELFCAL  = 0xF0
-	CmdSELFOCAL = 0xF1
-	CmdSELFGCAL = 0xF2
-	CmdSYSOCAL  = 0xF3
-	CmdSYSGCAL  = 0xF4
-	CmdSYNC     = 0xFC
-	CmdSTANDBY  = 0xFD
-	CmdRESET    = 0xFE
-	CmdWAKEUP   = 0xFF
+	CMDWakeUp   = 0x00
+	CMDRDATA    = 0x01
+	CMDRDATAC   = 0x03
+	CMDSDATAC   = 0x0F
+	CMDRREG     = 0x10 // 0x10 + (reg & 0x0F)
+	CMDWREG     = 0x50 // 0x50 + (reg & 0x0F)
+	CMDSELFCAL  = 0xF0
+	CMDSELFOCAL = 0xF1
+	CMDSELFGCAL = 0xF2
+	CMDSYSOCAL  = 0xF3
+	CMDSYSGCAL  = 0xF4
+	CMDSYNC     = 0xFC
+	CMDSTANDBY  = 0xFD
+	CMDRESET    = 0xFE
+	CMDWAKEUP   = 0xFF
 )
 
 // DRATE Register Byte constants (for DRATE register):
