@@ -1,30 +1,29 @@
 package ads1256
 
 import (
-	"encoding/binary"
 	"fmt"
 	"io"
 	"sync"
 	"time"
 )
 
+type Register byte
+
+// SPI interface allows for different SPI implementations.
+type SPI interface {
+}
+
 // ADS1256 provides high-level control over a TI ADS1256 ADC.
 //
 // It uses an io.ReadWriter for SPI communication and simple callbacks/interfaces
 // for DRDY and PWDN pin handling. You can adapt it further for your own GPIO usage.
 type ADS1256 struct {
-	mu    sync.Mutex    // Synchronize concurrent operations
-	spi   io.ReadWriter // Underlying SPI read/write
+	mu sync.Mutex // Synchronize concurrent operations
+	// SPI HardwareInterface
 
-	// If present, these callbacks or interfaces
-	// let us drive / read dedicated pins:
-	//   - DRDY: Data-Ready Pin
-	//   - PWDN: Power-down pin
-	// You can define them as functions, interfaces, or omit them if you wire
-	// them differently in your system.
-	waitDRDY func() error      // Called to wait for DRDY = LOW
-	setPWDN  func(level bool)  // Drive PWDN pin. level=true => high, etc. 
-	setCS    func(level bool)  // Drive chip-select pin if you want outside control
+	waitDRDY func() error     // Called to wait for DRDY = LOW
+	setPWDN  func(level bool) // Drive PWDN pin. level=true => high, etc.
+	setCS    func(level bool) // Drive chip-select pin if you want outside control
 
 	// Last read or written register states (for reference or debugging)
 	regLR [NumRegisters]byte // "Last Read"  register data
@@ -34,23 +33,23 @@ type ADS1256 struct {
 	continuousMode bool
 }
 
-// Some user-level configuration parameters
+// Config represents user-level configuration parameters
 type Config struct {
-	DataRate  byte // DR_xxx from the set of DRATE_DR_XXXX_SPS
-	PGA       byte // e.g. ADCON_PGA_1, ADCON_PGA_2, ...
-	BufferEn  bool // Enable the ADC's internal buffer
-	AutoCal   bool // If set, device auto-calibrates after certain register changes
-	ClkOut    byte // 0=Off, 1=CLK/1, 2=CLK/2, 3=CLK/4
+	DataRate byte // DR_xxx from the set of DRATE_DR_XXXX_SPS
+	PGA      byte // e.g. ADCON_PGA_1, ADCON_PGA_2, ...
+	BufferEn bool // Enable the ADC's internal buffer
+	AutoCal  bool // If set, device auto-calibrates after certain register changes
+	ClkOut   byte // 0=Off, 1=CLK/1, 2=CLK/2, 3=CLK/4
 }
 
-// Provide default config. You can adjust as needed
+// DefaultConfig provides default config. You can adjust as needed
 func DefaultConfig() Config {
 	return Config{
 		DataRate: DRATE_DR_1000_SPS, // 1k SPS
 		PGA:      ADCON_PGA_1,       // gain = 1
 		BufferEn: false,
 		AutoCal:  false,
-		ClkOut:   0,                 // Turn off CLKOUT
+		ClkOut:   0, // Turn off CLKOUT
 	}
 }
 
@@ -58,19 +57,31 @@ func DefaultConfig() Config {
 
 // Register Addresses
 const (
-	StatusReg = 0x00
-	MuxReg    = 0x01
-	AdconReg  = 0x02
-	DrateReg  = 0x03
-	IOReg     = 0x04
-	OFC0Reg   = 0x05
-	OFC1Reg   = 0x06
-	OFC2Reg   = 0x07
-	FSC0Reg   = 0x08
-	FSC1Reg   = 0x09
-	FSC2Reg   = 0x0A
+	// RegSTATUS is the STATUS register
+	RegSTATUS = 0x00
+	// RegMUX is the multiplexer register
+	RegMUX = 0x01
+	// RegADCON is the ADCON register
+	RegADCON = 0x02
+	// RegDRATE is the data rate register
+	RegDRATE = 0x03
+	// RegIO is the I/O register
+	RegIO = 0x04
+	// RegOFC0 is the offset calibration register 0
+	RegOFC0 = 0x05
+	// RegOFC1 is the offset calibration register 1
+	RegOFC1 = 0x06
+	// RegOFC2 is the offset calibration register 2
+	RegOFC2 = 0x07
+	// RegFSC0 is the full-scale calibration register 0
+	RegFSC0 = 0x08
+	// RegFSC1 is the full-scale calibration register 1
+	RegFSC1 = 0x09
+	// RegFSC2 is the full-scale calibration register 2
+	RegFSC2 = 0x0A
 
-	NumRegisters = 0x0B // 11 total (0 through 0x0A)
+	// NumRegisters is the total number of registers.
+	NumRegisters = 0x0B // 11 total (0 through 0x0A)*/
 )
 
 // Command Opcodes
@@ -123,19 +134,19 @@ const (
 
 // Bits for ADCON register
 const (
-	// SCLK freq outputs
-	AdconCLKOff   = 0x00
-	AdconCLKDiv1  = 0x20
-	AdconCLKDiv2  = 0x40
-	AdconCLKDiv4  = 0x60
+	// AdconCLKOff SCLK freq outputs
+	AdconCLKOff  = 0x00
+	AdconCLKDiv1 = 0x20
+	AdconCLKDiv2 = 0x40
+	AdconCLKDiv4 = 0x60
 
-	// SDCS sensor detect bits
+	// AdconSDCSOff SDCS sensor detect bits
 	AdconSDCSOff   = 0x00
 	AdconSDCS0p5uA = 0x08
 	AdconSDCS2uA   = 0x10
 	AdconSDCS10uA  = 0x18
 
-	// PGA bits
+	// ADCON_PGA_1 PGA bits
 	ADCON_PGA_1  = 0x00
 	ADCON_PGA_2  = 0x01
 	ADCON_PGA_4  = 0x02
@@ -148,14 +159,14 @@ const (
 // NewADS1256 constructs an ADS1256 object with the given SPI and optional pin callbacks.
 func NewADS1256(spi io.ReadWriter, waitDRDY func() error, setPWDN, setCS func(bool)) *ADS1256 {
 	return &ADS1256{
-		spi:      spi,
+		// SPI:      spi,
 		waitDRDY: waitDRDY,
 		setPWDN:  setPWDN,
 		setCS:    setCS,
 	}
 }
 
-// Initialize sets up the device with the provided config. 
+// Initialize sets up the device with the provided config.
 // Typically call it once at start-up. The ADS1256 automatically
 // does a self-cal on power-up, but you can do an additional SELFCAL if needed.
 func (adc *ADS1256) Initialize(cfg Config) error {
@@ -186,7 +197,7 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	// ID bits are read-only
 
 	// Write the STATUS register
-	if err := adc.writeRegister(StatusReg, statusVal); err != nil {
+	if err := adc.writeRegister(RegSTATUS, statusVal); err != nil {
 		return err
 	}
 
@@ -207,12 +218,11 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	adconVal |= AdconSDCSOff
 	// set PGA
 	adconVal |= (cfg.PGA & 0x07)
-	if err := adc.writeRegister(AdconReg, adconVal); err != nil {
+	if err := adc.writeRegister(RegADCON, adconVal); err != nil {
 		return err
 	}
 
-	// DRATE register
-	if err := adc.writeRegister(DrateReg, cfg.DataRate); err != nil {
+	if err := adc.writeRegister(RegDRATE, cfg.DataRate); err != nil {
 		return err
 	}
 
@@ -228,14 +238,14 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	// Optionally do self-cal
 	// ADC automatically self-cals after power-on, but if you want to re-run:
 	/*
-	if err := adc.sendCommand(CmdSELFCAL); err != nil {
-		return err
-	}
-	if adc.waitDRDY != nil {
-		if err := adc.waitDRDY(); err != nil {
+		if err := adc.sendCommand(CmdSELFCAL); err != nil {
 			return err
 		}
-	}
+		if adc.waitDRDY != nil {
+			if err := adc.waitDRDY(); err != nil {
+				return err
+			}
+		}
 	*/
 	return nil
 }
@@ -256,8 +266,8 @@ func (adc *ADS1256) WakeUp() error {
 	return adc.sendCommand(CmdWAKEUP)
 }
 
-// PowerDown pulls the PWDN pin low if setPWDN is provided. 
-// Holding SYNC/PDWN low for 20 DRDY cycles also powers down the chip. 
+// PowerDown pulls the PWDN pin low if setPWDN is provided.
+// Holding SYNC/PDWN low for 20 DRDY cycles also powers down the chip.
 func (adc *ADS1256) PowerDown() {
 	if adc.setPWDN != nil {
 		adc.setPWDN(false) // drive PWDN pin low
@@ -272,7 +282,7 @@ func (adc *ADS1256) PowerUp() {
 }
 
 // SingleConversion issues a Sync, WakeUp, then RDATA flow to read one sample.
-// Often used in "one-shot" mode. The user typically calls Standby() first, 
+// Often used in "one-shot" mode. The user typically calls Standby() first,
 // then SingleConversion() each time they want a measurement.
 func (adc *ADS1256) SingleConversion() (int32, error) {
 	adc.mu.Lock()
@@ -282,7 +292,7 @@ func (adc *ADS1256) SingleConversion() (int32, error) {
 	if err := adc.sendCommand(CmdSYNC); err != nil {
 		return 0, err
 	}
-	// WAKEUP 
+	// WAKEUP
 	if err := adc.sendCommand(CmdWAKEUP); err != nil {
 		return 0, err
 	}
@@ -360,7 +370,7 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 		return err
 	}
 
-	// Delay T6 might be needed. 
+	// Delay T6 might be needed.
 	time.Sleep(50 * time.Microsecond)
 
 	adc.regLW[regAddr] = value
@@ -485,12 +495,12 @@ func (adc *ADS1256) setCSHigh() error {
 }
 
 func (adc *ADS1256) spiWrite(out []byte) (int, error) {
-	n, err := adc.spi.Write(out)
-	return n, err
+	// n, err := adc.SPI.Write(out)
+	return -1, nil
 }
 func (adc *ADS1256) spiRead(in []byte) (int, error) {
-	n, err := adc.spi.Read(in)
-	return n, err
+	// n, err := adc.SPI.Read(in)
+	return -1, nil
 }
 
 // convert24to32 interprets a 3-byte, 24-bit signed value
@@ -508,4 +518,3 @@ func convert24to32(data []byte) int32 {
 	}
 	return int32(u32)
 }
-
