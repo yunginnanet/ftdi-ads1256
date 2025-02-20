@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/yunginnanet/ft232h"
 	"strconv"
+	"strings"
 )
 
 // DeviceInfo represents a snapshot of the device information for the [FT232H] device.
@@ -98,4 +99,28 @@ func BySerial(serial string) Descriptor {
 // ByMask returns a [Descriptor] with the specified mask.
 func ByMask(mask *ft232h.Mask) Descriptor {
 	return Descriptor{mask: mask, Index: -1}
+}
+
+// ByVIDPID returns a [Descriptor] with the specified vendor ID and product ID.
+// The vendor ID and product ID are hexadecimal strings. Empty strings will be ignored.
+func ByVIDPID(vid, pid string) Descriptor {
+	for _, s := range []*string{&vid, &pid} {
+		if *s != "" && !strings.HasPrefix(*s, "0x") {
+			*s = "0x" + *s
+		}
+	}
+
+	desc := Descriptor{}
+	desc.Index = -1
+
+	desc.mask = &ft232h.Mask{}
+
+	if vid != "" {
+		desc.mask.VID = vid
+	}
+	if pid != "" {
+		desc.mask.PID = pid
+	}
+
+	return desc
 }

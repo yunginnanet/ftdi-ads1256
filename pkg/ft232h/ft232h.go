@@ -18,7 +18,9 @@ func ConnectFT232h(choice ...Descriptor) (ft *FT232H, err error) {
 			return nil, ErrBadDescriptor
 		}
 		ft.FT232H, err = ft232h.OpenMask(desc.Mask())
-		ft.info = ft.Info()
+		if err == nil && ft.FT232H != nil {
+			ft.info = ft.Info()
+		}
 	default:
 		return nil, fmt.Errorf("invalid number of arguments")
 	}

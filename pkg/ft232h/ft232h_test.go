@@ -1,7 +1,6 @@
 package ft232h
 
 import (
-	"fmt"
 	"github.com/yunginnanet/ft232h"
 	"os"
 	"strconv"
@@ -29,6 +28,18 @@ func TestFT232HDescriptor(t *testing.T) {
 		}
 		t.Run("Invalid", func(t *testing.T) {
 			desc = BySerial("")
+			if err := desc.Validate(); err == nil {
+				t.Error("expected error")
+			}
+		})
+	})
+	t.Run("ByVIDPID", func(t *testing.T) {
+		desc := ByVIDPID("0403", "6014")
+		if err := desc.Validate(); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		t.Run("Invalid", func(t *testing.T) {
+			desc = ByVIDPID("", "")
 			if err := desc.Validate(); err == nil {
 				t.Error("expected error")
 			}
@@ -85,8 +96,11 @@ func testConnect(t *testing.T, desc *Descriptor, validMask bool) DeviceInfo {
 		t.Fatalf("failed to connect to FT232H: %v", err)
 	}
 
-	s := strings.Builder{}
-	s.WriteString(fmt.Sprintf("Connected to FT232H: %s\n", ftdi.Info().String()))
+	if ftdi == nil {
+		t.Fatalf("ftdi is nil")
+	}
+
+	t.Logf("Connected to FT232H: %s\n", ftdi.Info().String())
 
 	if err = ftdi.Close(); err != nil {
 		t.Errorf("failed to close FT232H: %v", err)
@@ -133,6 +147,23 @@ func TestConnectFT232h(t *testing.T) {
 		}
 
 		desc := BySerial(serial)
+
+		_ = testConnect(t, &desc, true)
+	})
+
+	t.Run("ByVIDPID", func(t *testing.T) {
+		vid := testInfo.VendorID
+		pid := testInfo.ProductID
+		if os.Getenv("TEST_FT232H_VID") != "" {
+			vid = strings.TrimSpace(os.Getenv("TEST_FT232H_VID"))
+		}
+		if os.Getenv("TEST_FT232H_PID") != "" {
+			pid = strings.TrimSpace(os.Getenv("TEST_FT232H_PID"))
+		}
+
+		desc := ByVIDPID(vid, pid)
+
+		t.Logf("VID: %s, PID: %s\n", desc.Mask().VID, desc.Mask().PID)
 
 		_ = testConnect(t, &desc, true)
 	})
