@@ -1,12 +1,11 @@
 package ads1256
 
 import (
-	"github.com/yunginnanet/ft232h"
 	"github.com/l0nax/go-spew/spew"
+	"github.com/yunginnanet/ft232h"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"testing"
 )
 
@@ -73,7 +72,7 @@ func TestFT232HDescriptor(t *testing.T) {
 	})
 }
 
-func testConnect(t *testing.T, desc *FT232HDescriptor, validMask bool) ft232h.Mask {
+func testConnect(t *testing.T, desc *FT232HDescriptor, validMask bool) DeviceInfo {
 	t.Helper()
 
 	var (
@@ -103,27 +102,11 @@ func testConnect(t *testing.T, desc *FT232HDescriptor, validMask bool) ft232h.Ma
 
 	pprint.Dump(ftdi.FT232H)
 
-	msk := copyMask(ftdi.Mask())
-
-	pprint.Dump(msk)
-
 	if err = ftdi.Close(); err != nil {
 		t.Errorf("failed to close FT232H: %v", err)
 	}
 
-	return msk
-}
-
-func copyMask(src *ft232h.Mask) ft232h.Mask {
-	msk := ft232h.Mask{}
-	if src != nil {
-		msk.Index = src.Index
-		msk.Serial = src.Serial
-		msk.PID = src.PID
-		msk.VID = src.VID
-		msk.Desc = src.Desc
-	}
-	return msk
+	return ftdi.Info()
 }
 
 func TestConnectFT232h(t *testing.T) {
@@ -131,31 +114,7 @@ func TestConnectFT232h(t *testing.T) {
 		t.Skip("set 'TEST_FT232H' in environment to run this test")
 	}
 
-	var (
-		testMaskCh = make(chan ft232h.Mask, 1)
-		testMask   *ft232h.Mask
-		testMaskMu sync.Mutex
-	)
-
-	getTestMask := func() ft232h.Mask {
-		t.Helper()
-		testMaskMu.Lock()
-		if testMask == nil {
-			tm := <-testMaskCh
-			testMask = &tm
-			close(testMaskCh)
-		}
-		testMaskMu.Unlock()
-		return copyMask(testMask)
-	}
-
-	t.Run("NoDesc", func(t *testing.T) {
-		msk := testConnect(t, nil, false)
-		select {
-		case testMaskCh <- msk:
-		default:
-		}
-	})
+	testInfo := testConnect(t, nil, false)
 
 	t.Run("ByIndex", func(t *testing.T) {
 		desc := ByIndex(0)
@@ -170,12 +129,7 @@ func TestConnectFT232h(t *testing.T) {
 			desc = ByIndex(idx)
 		}
 
-		msk := testConnect(t, &desc, true)
-
-		select {
-		case testMaskCh <- msk:
-		default:
-		}
+		_ = testConnect(t, &desc, true)
 	})
 
 	t.Run("BySerial", func(t *testing.T) {
@@ -185,7 +139,11 @@ func TestConnectFT232h(t *testing.T) {
 		}
 
 		if serial == "" {
-			serial = getTestMask().Serial
+			serial = testInfo.Serial
+		}
+
+		if serial == "" {
+			t.Skip("no serial number provided, try setting 'TEST_FT232H_SERIAL' in environment")
 		}
 
 		desc := BySerial(serial)

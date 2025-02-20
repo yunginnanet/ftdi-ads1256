@@ -1,22 +1,66 @@
 package ads1256
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"github.com/yunginnanet/ft232h"
 	"strconv"
 )
 
-type FT232H struct {
-	*ft232h.FT232H
-	mask *ft232h.Mask
+type DeviceInfo struct {
+	Index       int
+	Serial      string
+	Description string
+	ProductID   string
+	VendorID    string
+	IsOpen      bool
+	IsHighSpeed bool
 }
 
-func (ft *FT232H) Mask() *ft232h.Mask {
-	return ft.mask
+type FT232H struct {
+	*ft232h.FT232H
+	info DeviceInfo
+}
+
+func (ft *FT232H) vidPid() (vid string, pid string) {
+	vid = strconv.Itoa(int(ft.VID()))
+	pid = strconv.Itoa(int(ft.PID()))
+
+	b := bytes.NewBuffer(nil)
+	h := hex.NewEncoder(b)
+
+	if err := binary.Write(h, binary.BigEndian, ft.VID()); err == nil && len(b.String()) > 5 {
+		vid = b.String()[4:]
+	}
+
+	b.Reset()
+
+	if err := binary.Write(h, binary.BigEndian, ft.PID()); err == nil && len(b.String()) > 5 {
+		pid = b.String()[4:]
+	}
+
+	return vid, pid
+}
+
+// Info returns a snapshot of the device information for the FT232H device. Read-only.
+func (ft *FT232H) Info() DeviceInfo {
+	vid, pid := ft.vidPid()
+	return DeviceInfo{
+		Index:       ft.Index(),
+		Serial:      ft.Serial(),
+		Description: ft.Desc(),
+		ProductID:   pid,
+		VendorID:    vid,
+		IsOpen:      ft.IsOpen(),
+		IsHighSpeed: ft.IsHiSpeed(),
+	}
 }
 
 func (ft *FT232H) String() string {
-	return fmt.Sprintf("FT232H{FT232H:%v}", ft.mask)
+	s := fmt.Sprintf("FT232H[%s:%s]: %s", ft.Info().VendorID, ft.Info().ProductID, ft.Desc())
+	return s
 }
 
 type FT232HDescriptor struct {
@@ -80,7 +124,7 @@ func ConnectFT232h(choice ...FT232HDescriptor) (ft *FT232H, err error) {
 			return nil, ErrBadDescriptor
 		}
 		ft.FT232H, err = ft232h.OpenMask(desc.Mask())
-		ft.mask = desc.Mask()
+		ft.info = ft.Info()
 	default:
 		return nil, fmt.Errorf("invalid number of arguments")
 	}
