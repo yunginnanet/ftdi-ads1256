@@ -1,27 +1,13 @@
-package ads1256
+package ft232h
 
 import (
-	"github.com/l0nax/go-spew/spew"
+	"fmt"
 	"github.com/yunginnanet/ft232h"
 	"os"
 	"strconv"
 	"strings"
 	"testing"
 )
-
-var pprint = spew.ConfigState{
-	Indent:                  "\t",
-	MaxDepth:                0,
-	DisableMethods:          false,
-	DisablePointerMethods:   false,
-	DisablePointerAddresses: false,
-	DisableCapacities:       false,
-	ContinueOnMethod:        true,
-	SortKeys:                true,
-	SpewKeys:                true,
-	HighlightValues:         true,
-	HighlightHex:            true,
-}
 
 func TestFT232HDescriptor(t *testing.T) {
 	t.Run("ByIndex", func(t *testing.T) {
@@ -72,7 +58,7 @@ func TestFT232HDescriptor(t *testing.T) {
 	})
 }
 
-func testConnect(t *testing.T, desc *FT232HDescriptor, validMask bool) DeviceInfo {
+func testConnect(t *testing.T, desc *Descriptor, validMask bool) DeviceInfo {
 	t.Helper()
 
 	var (
@@ -98,9 +84,9 @@ func testConnect(t *testing.T, desc *FT232HDescriptor, validMask bool) DeviceInf
 	if err != nil {
 		t.Fatalf("failed to connect to FT232H: %v", err)
 	}
-	t.Logf("FT232H connected: %s", ftdi.String())
 
-	pprint.Dump(ftdi.FT232H)
+	s := strings.Builder{}
+	s.WriteString(fmt.Sprintf("Connected to FT232H: %s\n", ftdi.Info().String()))
 
 	if err = ftdi.Close(); err != nil {
 		t.Errorf("failed to close FT232H: %v", err)

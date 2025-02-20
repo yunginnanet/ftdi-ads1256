@@ -1,4 +1,4 @@
-package ads1256
+package ft232h
 
 import (
 	"bytes"
@@ -17,6 +17,13 @@ type DeviceInfo struct {
 	VendorID    string
 	IsOpen      bool
 	IsHighSpeed bool
+}
+
+func (ft DeviceInfo) String() string {
+	return fmt.Sprintf(
+		"DeviceInfo{Index:%d, Serial:%s, Description:%s, ProductID:%s, VendorID:%s, IsOpen:%t, IsHighSpeed:%t}",
+		ft.Index, ft.Serial, ft.Description, ft.ProductID, ft.VendorID, ft.IsOpen, ft.IsHighSpeed,
+	)
 }
 
 type FT232H struct {
@@ -63,7 +70,7 @@ func (ft *FT232H) String() string {
 	return s
 }
 
-type FT232HDescriptor struct {
+type Descriptor struct {
 	Index  int
 	Serial string
 	mask   *ft232h.Mask
@@ -75,14 +82,14 @@ func emptyMask(mask *ft232h.Mask) bool {
 	return mask == nil || (mask.Serial == "" && mask.PID == "" && mask.VID == "" && mask.Desc == "" && mask.Index == "")
 }
 
-func (ftd FT232HDescriptor) Validate() error {
+func (ftd Descriptor) Validate() error {
 	if ftd.Index < 0 && ftd.Serial == "" && emptyMask(ftd.mask) {
 		return ErrBadDescriptor
 	}
 	return nil
 }
 
-func (ftd FT232HDescriptor) Mask() *ft232h.Mask {
+func (ftd Descriptor) Mask() *ft232h.Mask {
 	if ftd.mask == nil {
 		ftd.mask = new(ft232h.Mask)
 	}
@@ -95,23 +102,23 @@ func (ftd FT232HDescriptor) Mask() *ft232h.Mask {
 	return ftd.mask
 }
 
-func (ftd FT232HDescriptor) String() string {
-	return fmt.Sprintf("FT232HDescriptor{Index:%d, Serial:%s, mask:%v}", ftd.Index, ftd.Serial, ftd.mask)
+func (ftd Descriptor) String() string {
+	return fmt.Sprintf("Descriptor{Index:%d, Serial:%s, mask:%v}", ftd.Index, ftd.Serial, ftd.mask)
 }
 
-func ByIndex(index int) FT232HDescriptor {
-	return FT232HDescriptor{Index: index}
+func ByIndex(index int) Descriptor {
+	return Descriptor{Index: index}
 }
 
-func BySerial(serial string) FT232HDescriptor {
-	return FT232HDescriptor{Serial: serial, Index: -1}
+func BySerial(serial string) Descriptor {
+	return Descriptor{Serial: serial, Index: -1}
 }
 
-func ByMask(mask *ft232h.Mask) FT232HDescriptor {
-	return FT232HDescriptor{mask: mask, Index: -1}
+func ByMask(mask *ft232h.Mask) Descriptor {
+	return Descriptor{mask: mask, Index: -1}
 }
 
-func ConnectFT232h(choice ...FT232HDescriptor) (ft *FT232H, err error) {
+func ConnectFT232h(choice ...Descriptor) (ft *FT232H, err error) {
 	ft = &FT232H{}
 
 	switch len(choice) {
