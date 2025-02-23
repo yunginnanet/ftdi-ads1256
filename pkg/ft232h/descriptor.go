@@ -29,7 +29,10 @@ func (ft DeviceInfo) String() string {
 // FT232H represents an FT232H device.
 type FT232H struct {
 	*ft232h.FT232H
-	info DeviceInfo
+	info    DeviceInfo
+	drdyPin ft232h.CPin // Data Ready pin
+	pwdnPin ft232h.CPin // Power Down pin
+	csPin   ft232h.CPin // Chip Select pin
 }
 
 // Info returns a snapshot of the device information for the FT232H device. Read-only.
