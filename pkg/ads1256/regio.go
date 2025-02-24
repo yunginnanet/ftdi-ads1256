@@ -33,11 +33,11 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 	}
 
 	// If in continuous read mode, must send SDATAC first
-	if adc.continuousMode {
+	if adc.continuousMode.Load() {
 		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
 			return errors.Join(err, adc.setCSHigh())
 		}
-		adc.continuousMode = false
+		adc.continuousMode.Store(false)
 
 		time.Sleep(100 * time.Microsecond)
 	}
@@ -69,11 +69,11 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 	}
 
 	// If in continuous read mode, must send SDATAC first
-	if adc.continuousMode {
+	if adc.continuousMode.Load() {
 		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
 			return 0, err
 		}
-		adc.continuousMode = false
+		adc.continuousMode.Store(false)
 		time.Sleep(100 * time.Microsecond)
 	}
 

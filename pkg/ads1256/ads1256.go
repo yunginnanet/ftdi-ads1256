@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,8 +44,7 @@ type ADS1256 struct {
 	regLR [NumRegisters]byte // "Last Read"  register data
 	regLW [NumRegisters]byte // "Last Write" register data
 
-	// We track whether we're in "Read Data Continuously" mode, so we can exit if needed
-	continuousMode bool
+	continuousMode *atomic.Bool
 }
 
 // Config represents user-level configuration parameters
@@ -70,7 +70,8 @@ func DefaultConfig() Config {
 // NewADS1256 constructs an ADS1256 object with the given SerialInterface and optional pin callbacks.
 func NewADS1256(spi SerialInterface) *ADS1256 {
 	return &ADS1256{
-		spi: spi,
+		spi:            spi,
+		continuousMode: new(atomic.Bool),
 	}
 }
 

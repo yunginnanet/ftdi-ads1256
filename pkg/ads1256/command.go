@@ -11,14 +11,12 @@ func (adc *ADS1256) sendCommand(cmd byte) error {
 	}
 
 	// If switching out of continuous read:
-	if adc.continuousMode && cmd != CMDRDATAC {
-		if cmd != CMDRESET { // if Reset is called, it also ends continuous mode
-			if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
-				return errors.Join(err, adc.setCSHigh())
-			}
-			adc.continuousMode = false
-			time.Sleep(100 * time.Microsecond)
+	if adc.continuousMode.Load() && cmd != CMDRDATAC && cmd != CMDRESET {
+		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
+			return errors.Join(err, adc.setCSHigh())
 		}
+		adc.continuousMode.Store(false)
+		time.Sleep(100 * time.Microsecond)
 	}
 
 	// Write the command
@@ -29,7 +27,7 @@ func (adc *ADS1256) sendCommand(cmd byte) error {
 
 	// If we just sent RDATAC
 	if cmd == CMDRDATAC {
-		adc.continuousMode = true
+		adc.continuousMode.Store(true)
 	}
 
 	// Some commands need extra wait or wait for DRDY
