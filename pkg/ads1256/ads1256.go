@@ -272,3 +272,44 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 
 	return raw, adc.setCSHigh()
 }
+
+// ReadChannel configures the multiplexer to read from (ainP, ainN),
+// then issues a [CMDSYNC]->[CMDWAKEUP] sequence, and finally reads the 24-bit raw value.
+//
+// Example usage:
+//
+//	code, err := adc.ReadChannel(CH_AIN0, CH_AINCOM)
+func (adc *ADS1256) ReadChannel(ainP, ainN Channel) (int32, error) {
+	adc.mu.Lock()
+
+	if err := adc.WaitDRDY(); err != nil {
+		adc.mu.Unlock()
+		return 0, err
+	}
+
+	// Write to MUX register: top 4 bits => ainP, bottom 4 => ainN
+	muxVal := byte((ainP << 4) | (ainN & 0x0F))
+
+	if err := adc.writeRegister(RegMUX, muxVal); err != nil {
+		adc.mu.Unlock()
+		return 0, fmt.Errorf("failed to set MUX: %v", err)
+	}
+
+	if err := adc.Sync(); err != nil {
+		adc.mu.Unlock()
+		return 0, fmt.Errorf("failed SYNC cmd: %v", err)
+	}
+
+	time.Sleep(5 * time.Microsecond)
+
+	if err := adc.Wakeup(); err != nil {
+		adc.mu.Unlock()
+		return 0, fmt.Errorf("failed WAKEUP cmd: %v", err)
+	}
+
+	time.Sleep(1 * time.Microsecond)
+
+	adc.mu.Unlock()
+	val, err := adc.readDataByCommand()
+	return val, err
+}
