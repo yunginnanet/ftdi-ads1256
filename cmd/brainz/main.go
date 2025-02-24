@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"github.com/rs/zerolog"
 	"github.com/yunginnanet/fdtdi-ads1256/pkg/ads1256"
 	"github.com/yunginnanet/fdtdi-ads1256/pkg/ft232h"
-	ft232h2 "github.com/yunginnanet/ft232h"
+	ft232h2 "github.com/ardnew/ft232h"
 	"os"
 	"time"
 )
@@ -57,11 +59,11 @@ func main() {
 	adc := ads1256.NewADS1256(spi)
 
 	cfg := ads1256.DefaultConfig()
-	// cfg.ClkOut = ads1256.AdconCLKDiv1
+	// cfg.ClkOut = ads1256.AdconCL
 	// cfg.AutoCal = true
-	// cfg.BufferEn = true
-	// cfg.DataRate = ads1256.DRATE_DR_1000_SPS
-	cfg.PGA = ads1256.ADCON_PGA_4
+	cfg.BufferEn = true
+	cfg.DataRate = ads1256.DRATE_DR_50_SPS
+	cfg.PGA = ads1256.ADCON_PGA_1
 
 	log.Debug().Any("config", cfg).Msg("initializing ADS1256")
 	if err = adc.Initialize(cfg); err != nil {
@@ -72,13 +74,37 @@ func main() {
 
 	time.Sleep(100 * time.Millisecond)
 
-	if err = adc.ReadAllRegisters(); err != nil {
-		log.Fatal().Err(err).Msg("failed to read ADS1256 registers")
+	var regs map[ads1256.Register]byte
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+
+	go func() {
+		_, _ = fmt.Scanln()
+		println("cancelling")
+		cancel()
+	}()
+
+fl:
+	for {
+		select {
+		case <-ctx.Done():
+			break fl
+		default:
+		}
+
+		/*		if err = adc.WaitDRDY(); err != nil {
+				log.Error().Err(err).Msg("failed to wait for ADS1256 DRDY")
+				break fl
+			}*/
+
+		if regs, err = adc.ReadAllRegisters(); err != nil {
+			log.Error().Err(err).Msg("failed to read ADS1256 registers")
+			break fl
+		}
+
+		log.Info().Any("values", regs).Msg("ADS1256 Registers")
+
 	}
-
-	regs := adc.Registers()
-
-	log.Info().Any("values", regs).Msg("ADS1256 Registers")
 
 	if err = adc.Close(); err != nil {
 		log.Fatal().Err(err).Msg("failed to close ADS1256")

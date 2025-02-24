@@ -1,7 +1,7 @@
 package ft232h
 
 import (
-	"github.com/yunginnanet/ft232h"
+	"github.com/ardnew/ft232h"
 	"os"
 	"strconv"
 	"strings"

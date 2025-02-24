@@ -2,7 +2,7 @@ package ft232h
 
 import (
 	"fmt"
-	"github.com/yunginnanet/ft232h"
+	"github.com/ardnew/ft232h"
 	"time"
 )
 

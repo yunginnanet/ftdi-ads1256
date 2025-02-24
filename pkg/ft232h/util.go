@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
-	"github.com/yunginnanet/ft232h"
+	"github.com/ardnew/ft232h"
 	"strconv"
 )
 

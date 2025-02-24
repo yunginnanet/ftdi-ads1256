@@ -1,8 +1,6 @@
 package ads1256
 
 import (
-	"github.com/l0nax/go-spew/spew"
-
 	"errors"
 	"fmt"
 	"io"
@@ -77,6 +75,10 @@ func NewADS1256(spi SerialInterface) *ADS1256 {
 	}
 }
 
+func (adc *ADS1256) WaitDRDY() error {
+	return adc.spi.WaitDRDY()
+}
+
 // Initialize sets up the device with the provided config.
 // Call it once at start-up. The ADS1256 automatically does a self-cal on power-up,
 // but you can do an additional SELFCAL if needed.
@@ -126,7 +128,7 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 
 	// no sensor detect current by default
 	// adconVal |= AdconSDCSOff
-	adconVal |= AdconSDCS0p5uA
+	adconVal |= AdconSDCS2uA
 
 	// set PGA
 	adconVal |= (cfg.PGA & 0x07)
@@ -151,10 +153,12 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	}
 
 	if err := adc.sendCommand(CMDSELFCAL); err != nil {
+		adc.mu.Unlock()
 		return err
 	}
 
 	/*	if err := adc.spi.WaitDRDY(); err != nil {
+		adc.mu.Unlock()
 		return err
 	}*/
 
@@ -232,11 +236,11 @@ func (adc *ADS1256) SingleConversion() (int32, error) {
 		return 0, err
 	}
 
-	/*	// Wait for DRDY
-		if err := adc.spi.WaitDRDY(); err != nil {
-			adc.mu.Unlock()
-			return 0, err
-		}*/
+	// Wait for DRDY
+	if err := adc.spi.WaitDRDY(); err != nil {
+		adc.mu.Unlock()
+		return 0, err
+	}
 
 	// Then read data with RDATA
 	n, err := adc.readDataByCommand()
@@ -347,38 +351,42 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 	time.Sleep(50 * time.Microsecond)
 
 	// read single register
-	buf := make([]byte, 1)
+	buf := get1Byte()
 
 	_, err := adc.Read(buf)
 
 	if err != nil {
+		put1Byte(buf)
 		return 0, err
 	}
 
-	val := buf[0]
+	copy(adc.regLR[regAddr:], buf)
 
-	spew.Dump(val)
-
-	adc.regLR[regAddr] = val
-
-	return val, nil
+	put1Byte(buf)
+	return adc.regLR[regAddr], nil
 }
 
-func (adc *ADS1256) ReadAllRegisters() error {
+func (adc *ADS1256) ReadAllRegisters() (registers map[Register]byte, err error) {
 	adc.mu.Lock()
-	err := adc.readAllRegisters()
+	err = adc.readAllRegisters()
+	if err == nil {
+		registers = make(map[Register]byte, NumRegisters)
+		for reg, val := range adc.regLR {
+			registers[Register(reg)] = val
+		}
+	}
 	adc.mu.Unlock()
-	return err
+	return
 }
 
 // readAllRegisters is optional, but can be handy for debug
 func (adc *ADS1256) readAllRegisters() error {
 	for reg := byte(0); reg < NumRegisters; reg++ {
-		_, err := adc.readRegister(reg)
+		val, err := adc.readRegister(reg)
 		if err != nil {
 			return err
 		}
-		// adc.regLR[reg] = val // done in readRegister
+		adc.regLR[reg] = val // done in readRegister
 	}
 
 	return nil
@@ -424,9 +432,9 @@ func (adc *ADS1256) sendCommand(cmd byte) error {
 			return adc.setCSHigh()
 		}
 
-		/*		if err = adc.spi.WaitDRDY(); err != nil {
-				return errors.Join(err, adc.setCSHigh())
-			}*/
+		/*if err = adc.spi.WaitDRDY(); err != nil {
+			return errors.Join(err, adc.setCSHigh())
+		}*/
 	}
 
 	return nil
