@@ -185,8 +185,8 @@ func (adc *ADS1256) Standby() error {
 	return adc.sendCommand(CMDSTANDBY)
 }
 
-// WakeUp from SYNC or STANDBY mode.
-func (adc *ADS1256) WakeUp() error {
+// Wakeup from SYNC or STANDBY mode.
+func (adc *ADS1256) Wakeup() error {
 	// ADS1256 has two forms (0x00 or 0xFF). We'll just send 0x00 for clarity.
 	return adc.sendCommand(CMDWAKEUP)
 }
@@ -207,7 +207,7 @@ func (adc *ADS1256) PowerUp() error {
 	return adc.spi.PowerUp() // drive PWDN pin high
 }
 
-// SingleConversion issues a Sync, [WakeUp], then RDATA flow to read one sample.
+// SingleConversion issues a Sync, [Wakeup], then RDATA flow to read one sample.
 // Often used in "one-shot" mode. The user typically calls Standby() first,
 // then SingleConversion() each time they want a measurement.
 func (adc *ADS1256) SingleConversion() (int32, error) {
@@ -220,7 +220,7 @@ func (adc *ADS1256) SingleConversion() (int32, error) {
 	}
 
 	// WAKEUP
-	if err := adc.WakeUp(); err != nil {
+	if err := adc.Wakeup(); err != nil {
 		adc.mu.Unlock()
 		return 0, err
 	}
@@ -260,16 +260,16 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 
 	time.Sleep(200 * time.Microsecond)
 
-	// Read 3 bytes
-	buf := make([]byte, 3)
+	buf := get3Bytes()
 	_, err = adc.Read(buf)
 	if err != nil {
+		put3Bytes(buf)
 		return 0, errors.Join(err, adc.setCSHigh())
 	}
 
-	// Combine 24 bits into signed 32
 	raw := Convert24To32(buf)
 
+	put3Bytes(buf)
 	return raw, adc.setCSHigh()
 }
 
