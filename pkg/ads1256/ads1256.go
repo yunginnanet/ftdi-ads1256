@@ -3,7 +3,6 @@ package ads1256
 import (
 	"errors"
 	"fmt"
-	"io"
 	"sync"
 	"time"
 )
@@ -85,14 +84,14 @@ func (adc *ADS1256) WaitDRDY() error {
 func (adc *ADS1256) Initialize(cfg Config) error {
 	adc.mu.Lock()
 
-	// Issue hardware or software reset if desired:
-	if err := adc.reset(); err != nil {
+	// Issue hardware or software Reset if desired:
+	if err := adc.Reset(); err != nil {
 		adc.mu.Unlock()
 		return err
 	}
 
 	// Wait a bit for device to run internal power-up routines
-	time.Sleep(50 * time.Millisecond) // 30ms is typical after hardware reset
+	time.Sleep(50 * time.Millisecond) // 30ms is typical after hardware Reset
 
 	// Build the STATUS register byte
 	var statusVal byte = 0x00
@@ -127,11 +126,12 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	}
 
 	// no sensor detect current by default
-	// adconVal |= AdconSDCSOff
-	adconVal |= AdconSDCS2uA
+	// TODO: make this a parameter
+	adconVal |= AdconSDCSOff
+	// adconVal |= AdconSDCS2uA
 
-	// set PGA
-	adconVal |= (cfg.PGA & 0x07)
+	//goland:noinspection GoRedundantParens
+	adconVal |= (cfg.PGA & 0x07) // set PGA bits
 	if err := adc.writeRegister(RegADCON, adconVal); err != nil {
 		adc.mu.Unlock()
 		return err
@@ -166,33 +166,16 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	return nil
 }
 
-func (adc *ADS1256) LastReadRegister(reg Register) byte {
-	adc.mu.RLock()
-	b := adc.regLR[reg]
-	adc.mu.RUnlock()
-	return b
-}
-
-func (adc *ADS1256) Registers() map[Register]byte {
-	adc.mu.RLock()
-	r := make(map[Register]byte, NumRegisters)
-	for reg, val := range adc.regLR {
-		r[Register(reg)] = val
-	}
-	adc.mu.RUnlock()
-	return r
-}
-
 func (adc *ADS1256) Close() error {
-	err := adc.reset()
+	err := adc.Reset()
 	err = errors.Join(err, adc.Standby())
 	err = errors.Join(err, adc.PowerDown())
 	err = errors.Join(err, adc.spi.Close())
 	return adc.spi.PowerDown()
 }
 
-// reset triggers a software reset using the RESET command
-func (adc *ADS1256) reset() error {
+// Reset triggers a software Reset using the RESET command
+func (adc *ADS1256) Reset() error {
 	return adc.sendCommand(CMDRESET)
 }
 
@@ -207,6 +190,11 @@ func (adc *ADS1256) WakeUp() error {
 	return adc.sendCommand(CMDWAKEUP)
 }
 
+// Sync sends a SYNC command to synchronize the ADC's data output.
+func (adc *ADS1256) Sync() error {
+	return adc.sendCommand(CMDSYNC)
+}
+
 // PowerDown pulls the PWDN pin low if setPWDN is provided.
 // Holding SYNC/PDWN low for 20 DRDY cycles also powers down the chip.
 func (adc *ADS1256) PowerDown() error {
@@ -218,20 +206,20 @@ func (adc *ADS1256) PowerUp() error {
 	return adc.spi.PowerUp() // drive PWDN pin high
 }
 
-// SingleConversion issues a Sync, WakeUp, then RDATA flow to read one sample.
+// SingleConversion issues a Sync, [WakeUp], then RDATA flow to read one sample.
 // Often used in "one-shot" mode. The user typically calls Standby() first,
 // then SingleConversion() each time they want a measurement.
 func (adc *ADS1256) SingleConversion() (int32, error) {
 	adc.mu.Lock()
 
 	// SYNC
-	if err := adc.sendCommand(CMDSYNC); err != nil {
+	if err := adc.Sync(); err != nil {
 		adc.mu.Unlock()
 		return 0, err
 	}
 
 	// WAKEUP
-	if err := adc.sendCommand(CMDWAKEUP); err != nil {
+	if err := adc.WakeUp(); err != nil {
 		adc.mu.Unlock()
 		return 0, err
 	}
@@ -250,14 +238,15 @@ func (adc *ADS1256) SingleConversion() (int32, error) {
 	return n, err
 }
 
-// ReadDataByCommand performs RDATA to get a single 24-bit result from the device.
-func (adc *ADS1256) ReadDataByCommand() (int32, error) {
+// RData performs RDATA to get a single 24-bit result from the device.
+func (adc *ADS1256) RData() (int32, error) {
 	adc.mu.Lock()
 	i3, err := adc.readDataByCommand()
 	adc.mu.Unlock()
 	return i3, err
 }
 
+// readDataByCommand performs the RDATA command to get a single 24-bit result from the device.
 func (adc *ADS1256) readDataByCommand() (int32, error) {
 	if err := adc.setCSLow(); err != nil {
 		return 0, err
@@ -278,204 +267,7 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 	}
 
 	// Combine 24 bits into signed 32
-	raw := convert24to32(buf)
+	raw := Convert24To32(buf)
 
 	return raw, adc.setCSHigh()
-}
-
-// ----- Lower-level register reads/writes:
-
-// writeRegister writes a single register [regAddr], with the given value.
-func (adc *ADS1256) writeRegister(regAddr, value byte) error {
-	if regAddr >= NumRegisters {
-		return fmt.Errorf("invalid register address 0x%02X", regAddr)
-	}
-	if err := adc.setCSLow(); err != nil {
-		return err
-	}
-
-	// If in continuous read mode, must send SDATAC first
-	if adc.continuousMode {
-		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
-			return errors.Join(err, adc.setCSHigh())
-		}
-		adc.continuousMode = false
-
-		time.Sleep(100 * time.Microsecond)
-	}
-
-	// WREG: 0x50 + regAddr
-	cmd := CMDWREG | (regAddr & 0x0F)
-
-	// second byte: # of registers -1. We only do one register => 0
-	out := []byte{cmd, 0x00, value}
-	if _, err := adc.Write(out); err != nil {
-		return errors.Join(err, adc.setCSHigh())
-	}
-
-	// Delay T6 might be needed.
-	time.Sleep(50 * time.Microsecond)
-
-	adc.regLW[regAddr] = value
-	return adc.setCSHigh()
-}
-
-// readRegister reads a single register [regAddr].
-func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
-	if regAddr >= NumRegisters {
-		return 0, fmt.Errorf("invalid register address 0x%02X", regAddr)
-	}
-
-	if err := adc.setCSLow(); err != nil {
-		return 0, err
-	}
-
-	// If in continuous read mode, must send SDATAC first
-	if adc.continuousMode {
-		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
-			return 0, err
-		}
-		adc.continuousMode = false
-		time.Sleep(100 * time.Microsecond)
-	}
-
-	// RREG: 0x10 + regAddr
-	cmd := CMDRREG | (regAddr & 0x0F)
-
-	// 2nd byte => # of registers -1 => 0
-	out := []byte{cmd, 0x00}
-	if _, err := adc.Write(out); err != nil {
-		return 0, err
-	}
-
-	time.Sleep(50 * time.Microsecond)
-
-	// read single register
-	buf := get1Byte()
-
-	_, err := adc.Read(buf)
-
-	if err != nil {
-		put1Byte(buf)
-		return 0, err
-	}
-
-	copy(adc.regLR[regAddr:], buf)
-
-	put1Byte(buf)
-	return adc.regLR[regAddr], nil
-}
-
-func (adc *ADS1256) ReadAllRegisters() (registers map[Register]byte, err error) {
-	adc.mu.Lock()
-	err = adc.readAllRegisters()
-	if err == nil {
-		registers = make(map[Register]byte, NumRegisters)
-		for reg, val := range adc.regLR {
-			registers[Register(reg)] = val
-		}
-	}
-	adc.mu.Unlock()
-	return
-}
-
-// readAllRegisters is optional, but can be handy for debug
-func (adc *ADS1256) readAllRegisters() error {
-	for reg := byte(0); reg < NumRegisters; reg++ {
-		val, err := adc.readRegister(reg)
-		if err != nil {
-			return err
-		}
-		adc.regLR[reg] = val // done in readRegister
-	}
-
-	return nil
-}
-
-// ----- Commands:
-
-func (adc *ADS1256) sendCommand(cmd byte) error {
-	if err := adc.setCSLow(); err != nil {
-		return err
-	}
-
-	// If switching out of continuous read:
-	if adc.continuousMode && cmd != CMDRDATAC {
-		if cmd != CMDRESET { // if reset is called, it also ends continuous mode
-			if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
-				return errors.Join(err, adc.setCSHigh())
-			}
-			adc.continuousMode = false
-			time.Sleep(100 * time.Microsecond)
-		}
-	}
-
-	// Write the command
-	_, err := adc.Write([]byte{cmd})
-	if err != nil {
-		return errors.Join(err, adc.setCSHigh())
-	}
-
-	// If we just sent RDATAC
-	if cmd == CMDRDATAC {
-		adc.continuousMode = true
-	}
-
-	// Some commands need extra wait or wait for DRDY
-	switch cmd {
-	// Must wait for DRDY after these commands.
-	case CMDRESET, CMDSELFCAL, CMDSELFOCAL, CMDSELFGCAL,
-		CMDSYSOCAL, CMDSYSGCAL, CMDSTANDBY:
-
-		// STANDBY won't come out until WAKEUP, so you might not wait DRDY for that.
-		if cmd == CMDSTANDBY {
-			return adc.setCSHigh()
-		}
-
-		/*if err = adc.spi.WaitDRDY(); err != nil {
-			return errors.Join(err, adc.setCSHigh())
-		}*/
-	}
-
-	return nil
-}
-
-// ----- Helper / utility
-
-func (adc *ADS1256) setCSLow() error {
-	return adc.spi.SetCS(false)
-}
-func (adc *ADS1256) setCSHigh() error {
-	return adc.spi.SetCS(true)
-}
-
-func (adc *ADS1256) Write(p []byte) (int, error) {
-	n, err := adc.spi.Write(p, false, false)
-	return int(n), err
-}
-func (adc *ADS1256) Read(p []byte) (int, error) {
-	b, err := adc.spi.Read(uint(len(p)), false, false)
-	if err != nil {
-		return 0, err
-	}
-	if len(p) < len(b) {
-		return 0, io.ErrShortBuffer
-	}
-	return copy(p, b), err
-}
-
-// convert24to32 interprets a 3-byte, 24-bit signed value
-// in two's complement form, MSB first, as a 32-bit int.
-func convert24to32(data []byte) int32 {
-	// data[0] is MSB. If top bit set => negative
-	var u32 uint32
-	u32 |= uint32(data[0]) << 16
-	u32 |= uint32(data[1]) << 8
-	u32 |= uint32(data[2])
-
-	// sign extension
-	if (u32 & 0x800000) != 0 {
-		u32 |= 0xFF000000
-	}
-	return int32(u32)
 }

@@ -1,8 +1,10 @@
 package ads1256
 
-// Constants from the datasheet
+// Source: https://www.ti.com/lit/ds/symlink/ads1256.pdf
 
 // Register Addresses
+//
+//goland:noinspection GoUnusedConst
 const (
 	// RegSTATUS is the STATUS register
 	RegSTATUS = 0x00
@@ -33,7 +35,7 @@ const (
 
 // Command Opcodes
 const (
-	CMDWakeUp   = 0x00
+	CMDWAKEUP0  = 0x00
 	CMDRDATA    = 0x01
 	CMDRDATAC   = 0x03
 	CMDSDATAC   = 0x0F
@@ -52,6 +54,8 @@ const (
 
 // DRATE Register Byte constants (for DRATE register):
 // fCLKIN assumed = 7.68 MHz. Data Rate is from Table in data sheet.
+//
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
 	DRATE_DR_2p5_SPS   = 0x00
 	DRATE_DR_5_SPS     = 0x01
@@ -72,6 +76,8 @@ const (
 )
 
 // Bits for the STATUS register
+//
+//goland:noinspection GoUnusedConst
 const (
 	StatusORDERbit = 0x08 // (bit3)
 	StatusACALbit  = 0x04 // (bit2)
@@ -80,6 +86,8 @@ const (
 )
 
 // Bits for ADCON register
+//
+//goland:noinspection GoUnusedConst
 const (
 	// AdconCLKOff SCLK freq outputs
 	AdconCLKOff  = 0x00

@@ -4,10 +4,10 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	ft232h2 "github.com/ardnew/ft232h"
 	"github.com/rs/zerolog"
 	"github.com/yunginnanet/ftdi-ads1256/pkg/ads1256"
 	"github.com/yunginnanet/ftdi-ads1256/pkg/ft232h"
-	ft232h2 "github.com/ardnew/ft232h"
 	"os"
 	"time"
 )
