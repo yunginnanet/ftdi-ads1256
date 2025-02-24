@@ -34,7 +34,7 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 
 	// If in continuous read mode, must send SDATAC first
 	if adc.continuousMode.Load() {
-		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
+		if _, err := adc.Write([]byte{CMD_SDATAC}); err != nil {
 			return errors.Join(err, adc.setCSHigh())
 		}
 		adc.continuousMode.Store(false)
@@ -43,7 +43,7 @@ func (adc *ADS1256) writeRegister(regAddr, value byte) error {
 	}
 
 	// WREG: 0x50 + regAddr
-	cmd := CMDWREG | (regAddr & 0x0F)
+	cmd := CMD_WREG | (regAddr & 0x0F)
 
 	// second byte: # of registers -1. We only do one register => 0
 	out := []byte{cmd, 0x00, value}
@@ -70,7 +70,7 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 
 	// If in continuous read mode, must send SDATAC first
 	if adc.continuousMode.Load() {
-		if _, err := adc.Write([]byte{CMDSDATAC}); err != nil {
+		if _, err := adc.Write([]byte{CMD_SDATAC}); err != nil {
 			return 0, err
 		}
 		adc.continuousMode.Store(false)
@@ -78,7 +78,7 @@ func (adc *ADS1256) readRegister(regAddr byte) (byte, error) {
 	}
 
 	// RREG: 0x10 + regAddr
-	cmd := CMDRREG | (regAddr & 0x0F)
+	cmd := CMD_RREG | (regAddr & 0x0F)
 
 	// 2nd byte => # of registers -1 => 0
 	out := []byte{cmd, 0x00}

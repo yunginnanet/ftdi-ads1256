@@ -4,52 +4,54 @@ package ads1256
 
 // Register Addresses
 //
-//goland:noinspection GoUnusedConst
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
-	// RegSTATUS is the STATUS register
-	RegSTATUS = 0x00
-	// RegMUX is the multiplexer register
-	RegMUX = 0x01
-	// RegADCON is the ADCON register
-	RegADCON = 0x02
-	// RegDRATE is the data rate register
-	RegDRATE = 0x03
-	// RegIO is the I/O register
-	RegIO = 0x04
-	// RegOFC0 is the offset calibration register 0
-	RegOFC0 = 0x05
-	// RegOFC1 is the offset calibration register 1
-	RegOFC1 = 0x06
-	// RegOFC2 is the offset calibration register 2
-	RegOFC2 = 0x07
-	// RegFSC0 is the full-scale calibration register 0
-	RegFSC0 = 0x08
-	// RegFSC1 is the full-scale calibration register 1
-	RegFSC1 = 0x09
-	// RegFSC2 is the full-scale calibration register 2
-	RegFSC2 = 0x0A
+	// REG_STATUS is the STATUS register
+	REG_STATUS = 0x00
+	// REG_MUX is the multiplexer register
+	REG_MUX = 0x01
+	// REG_ADCON is the ADCON register
+	REG_ADCON = 0x02
+	// REG_DRATE is the data rate register
+	REG_DRATE = 0x03
+	// REG_IO is the I/O register
+	REG_IO = 0x04
+	// REG_OFC0 is the offset calibration register 0
+	REG_OFC0 = 0x05
+	// REG_OFC1 is the offset calibration register 1
+	REG_OFC1 = 0x06
+	// REG_OFC2 is the offset calibration register 2
+	REG_OFC2 = 0x07
+	// REG_FSC0 is the full-scale calibration register 0
+	REG_FSC0 = 0x08
+	// REG_FSC1 is the full-scale calibration register 1
+	REG_FSC1 = 0x09
+	// REG_FSC2 is the full-scale calibration register 2
+	REG_FSC2 = 0x0A
 
 	// NumRegisters is the total number of registers.
 	NumRegisters = 0x0B // 11 total (0 through 0x0A)*/
 )
 
 // Command Opcodes
+//
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
-	CMDWAKEUP0  = 0x00
-	CMDRDATA    = 0x01
-	CMDRDATAC   = 0x03
-	CMDSDATAC   = 0x0F
-	CMDRREG     = 0x10 // 0x10 + (reg & 0x0F)
-	CMDWREG     = 0x50 // 0x50 + (reg & 0x0F)
-	CMDSELFCAL  = 0xF0
-	CMDSELFOCAL = 0xF1
-	CMDSELFGCAL = 0xF2
-	CMDSYSOCAL  = 0xF3
-	CMDSYSGCAL  = 0xF4
-	CMDSYNC     = 0xFC
-	CMDSTANDBY  = 0xFD
-	CMDRESET    = 0xFE
-	CMDWAKEUP   = 0xFF
+	CMD_WAKEUP0  = 0x00
+	CMD_RDATA    = 0x01
+	CMD_RDATAC   = 0x03
+	CMD_SDATAC   = 0x0F
+	CMD_RREG     = 0x10 // 0x10 + (reg & 0x0F)
+	CMD_WREG     = 0x50 // 0x50 + (reg & 0x0F)
+	CMD_SELFCAL  = 0xF0
+	CMD_SELFOCAL = 0xF1
+	CMD_SELFGCAL = 0xF2
+	CMD_SYSOCAL  = 0xF3
+	CMD_SYSGCAL  = 0xF4
+	CMD_SYNC     = 0xFC
+	CMD_STANDBY  = 0xFD
+	CMD_RESET    = 0xFE
+	CMD_WAKEUP   = 0xFF
 )
 
 // DRATE Register Byte constants (for DRATE register):
@@ -77,31 +79,31 @@ const (
 
 // Bits for the STATUS register
 //
-//goland:noinspection GoUnusedConst
+//goland:noinspection GoSnakeCaseUsage,GoUnusedConst
 const (
-	StatusORDERbit = 0x08 // (bit3)
-	StatusACALbit  = 0x04 // (bit2)
-	StatusBUFENbit = 0x02 // (bit1)
-	StatusDRDYbit  = 0x01 // (bit0, read-only)
+	STATUS_ORDER = 0x08 // (bit3)
+	STATUS_ACAL  = 0x04 // (bit2)
+	STATUS_BUFEN = 0x02 // (bit1)
+	STATUS_DRDY  = 0x01 // (bit0, read-only)
 )
 
 // Bits for ADCON register
 //
-//goland:noinspection GoUnusedConst
+//goland:noinspection GoUnusedConst,GoSnakeCaseUsage,GoCommentStart
 const (
-	// AdconCLKOff SCLK freq outputs
-	AdconCLKOff  = 0x00
-	AdconCLKDiv1 = 0x20
-	AdconCLKDiv2 = 0x40
-	AdconCLKDiv4 = 0x60
+	// SCLK freq outputs
+	ADCON_CLK_OFF  = 0x00
+	ADCON_CLK_DIV1 = 0x20
+	ADCON_CLK_DIV2 = 0x40
+	ADCON_CLK_DIV4 = 0x60
 
-	// AdconSDCSOff SDCS sensor detect bits
-	AdconSDCSOff   = 0x00
-	AdconSDCS0p5uA = 0x08
-	AdconSDCS2uA   = 0x10
-	AdconSDCS10uA  = 0x18
+	// SDCS sensor detect bits
+	ADCON_SDCS_OFF   = 0x00
+	ADCON_SDCS_0p5uA = 0x08
+	ADCON_SDCS_2uA   = 0x10
+	ADCON_SDCS_10uA  = 0x18
 
-	// ADCON_PGA_1 PGA bits
+	// PGA (amplifier) bits
 	ADCON_PGA_1  = 0x00
 	ADCON_PGA_2  = 0x01
 	ADCON_PGA_4  = 0x02

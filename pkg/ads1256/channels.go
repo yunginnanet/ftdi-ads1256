@@ -143,6 +143,8 @@ func (adc *ADS1256) scanChannelPairs(cs *ChannelScan, cancel context.CancelFunc)
 	}
 
 	for _, chPair := range cs.pairs {
+		println("scanning", chPair.Pos, chPair.Neg)
+
 		if cs.done.Load() {
 			cancel()
 			return
@@ -150,18 +152,25 @@ func (adc *ADS1256) scanChannelPairs(cs *ChannelScan, cancel context.CancelFunc)
 
 		adc.mu.Lock()
 
-		// exit existing continuous mode if active
-		if err := adc.sendCommand(CMDSDATAC); err != nil {
-			cancel()
-			cs.addErr(err)
-			adc.mu.Unlock()
-			return
+		if adc.continuousMode.Load() {
+			println("exiting continuous mode")
+
+			// exit existing continuous mode if active
+			if err := adc.sendCommand(CMD_SDATAC); err != nil {
+				cancel()
+				cs.addErr(err)
+				adc.mu.Unlock()
+				return
+			}
+			adc.continuousMode.Store(false)
 		}
-		adc.continuousMode.Store(false)
 
 		// set multiplexer to read from the current channel pair
 		muxVal := byte((chPair.Pos << 4) | (chPair.Neg & 0x0F))
-		if err := adc.writeRegister(RegMUX, muxVal); err != nil {
+
+		fmt.Printf("writing to REG_MUX: %08b\n", muxVal)
+
+		if err := adc.writeRegister(REG_MUX, muxVal); err != nil {
 			cancel()
 			cs.addErr(err)
 			adc.mu.Unlock()
@@ -169,12 +178,14 @@ func (adc *ADS1256) scanChannelPairs(cs *ChannelScan, cancel context.CancelFunc)
 		}
 
 		// maybe ensure single-cycle settling?
-		// _ = adc.sendCommand(CMDSYNC)
-		// _ = adc.sendCommand(CMDWAKEUP)
+		// _ = adc.sendCommand(CMD_SYNC)
+		// _ = adc.sendCommand(CMD_WAKEUP)
 		// might want to wait DRDY or a small delay.
 
+		println("sending RDATAC")
+
 		// start continuous read
-		if err := adc.sendCommand(CMDRDATAC); err != nil {
+		if err := adc.sendCommand(CMD_RDATAC); err != nil {
 			cancel()
 			cs.addErr(err)
 			adc.mu.Unlock()
@@ -183,13 +194,18 @@ func (adc *ADS1256) scanChannelPairs(cs *ChannelScan, cancel context.CancelFunc)
 
 		adc.continuousMode.Store(true)
 
+		println("waiting for DRDY")
 		cs.addErr(adc.WaitDRDY())
 
 		// read 3 bytes
 		// In RDATAC, after DRDY you simply clock out 3 bytes
 		rawBuf := get3Bytes()
 
+		println("setting CS low")
+
 		cs.addErr(adc.setCSLow())
+
+		println("reading 3 bytes")
 
 		n, err := adc.Read(rawBuf)
 		if err != nil && !errors.Is(err, io.EOF) {
@@ -200,12 +216,18 @@ func (adc *ADS1256) scanChannelPairs(cs *ChannelScan, cancel context.CancelFunc)
 			cs.addErr(fmt.Errorf("%w: expected 3 bytes, got %d", io.ErrUnexpectedEOF, n))
 		}
 
+		fmt.Printf("rawBuf: %08b\n", rawBuf)
+
+		println("setting CS high")
+
 		cs.addErr(adc.setCSHigh())
 
 		// convert to int32
 		code := Convert24To32(rawBuf)
 
 		put3Bytes(rawBuf)
+
+		fmt.Printf("code: %d\nrunning call back\n", code)
 
 		cs.callback(chPair, code)
 
@@ -227,15 +249,15 @@ func (adc *ADS1256) ScanChannelsContinuously(
 	scanInterval time.Duration,
 	onData DataCallback,
 	pairs ...ChannelPair,
-) error {
+) (*ChannelScan, error) {
 	// Quick check that we have at least one channel pair.
 	if len(pairs) == 0 {
-		return errors.New("no channels to scan")
+		return nil, errors.New("no channels to scan")
 	}
 
 	if adc.continuousMode.Load() {
-		if err := adc.sendCommand(CMDSDATAC); err != nil {
-			return fmt.Errorf("failed to send SDATAC (continuous mode was already enabled): %w", err)
+		if err := adc.sendCommand(CMD_SDATAC); err != nil {
+			return nil, fmt.Errorf("failed to send SDATAC (continuous mode was already enabled): %w", err)
 		}
 		adc.continuousMode.Store(false)
 	}
@@ -263,5 +285,5 @@ func (adc *ADS1256) ScanChannelsContinuously(
 		}
 	}()
 
-	return nil
+	return chScan, nil
 }

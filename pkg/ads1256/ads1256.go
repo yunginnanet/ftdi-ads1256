@@ -97,17 +97,17 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	// Build the STATUS register byte
 	var statusVal byte = 0x00
 	if cfg.BufferEn {
-		statusVal |= StatusBUFENbit
+		statusVal |= STATUS_BUFEN
 	}
 	if cfg.AutoCal {
-		statusVal |= StatusACALbit
+		statusVal |= STATUS_ACAL
 	}
 
 	// ORDER bit remains 0 => MSB first
 	// ID bits are read-only
 
 	// Write the STATUS register
-	if err := adc.writeRegister(RegSTATUS, statusVal); err != nil {
+	if err := adc.writeRegister(REG_STATUS, statusVal); err != nil {
 		adc.mu.Unlock()
 		return err
 	}
@@ -117,28 +117,28 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 	var adconVal byte
 	switch cfg.ClkOut {
 	case 1:
-		adconVal = AdconCLKDiv1
+		adconVal = ADCON_CLK_DIV1
 	case 2:
-		adconVal = AdconCLKDiv2
+		adconVal = ADCON_CLK_DIV2
 	case 3:
-		adconVal = AdconCLKDiv4
+		adconVal = ADCON_CLK_DIV4
 	default:
-		adconVal = AdconCLKOff
+		adconVal = ADCON_CLK_OFF
 	}
 
 	// no sensor detect current by default
 	// TODO: make this a parameter
-	adconVal |= AdconSDCSOff
+	adconVal |= ADCON_SDCS_OFF
 	// adconVal |= AdconSDCS2uA
 
 	//goland:noinspection GoRedundantParens
 	adconVal |= (cfg.PGA & 0x07) // set PGA bits
-	if err := adc.writeRegister(RegADCON, adconVal); err != nil {
+	if err := adc.writeRegister(REG_ADCON, adconVal); err != nil {
 		adc.mu.Unlock()
 		return err
 	}
 
-	if err := adc.writeRegister(RegDRATE, cfg.DataRate); err != nil {
+	if err := adc.writeRegister(REG_DRATE, cfg.DataRate); err != nil {
 		adc.mu.Unlock()
 		return err
 	}
@@ -153,7 +153,7 @@ func (adc *ADS1256) Initialize(cfg Config) error {
 		return fmt.Errorf("failed to read back registers: %v", err)
 	}
 
-	if err := adc.sendCommand(CMDSELFCAL); err != nil {
+	if err := adc.sendCommand(CMD_SELFCAL); err != nil {
 		adc.mu.Unlock()
 		return err
 	}
@@ -177,23 +177,23 @@ func (adc *ADS1256) Close() error {
 
 // Reset triggers a software Reset using the RESET command
 func (adc *ADS1256) Reset() error {
-	return adc.sendCommand(CMDRESET)
+	return adc.sendCommand(CMD_RESET)
 }
 
 // Standby puts the device into standby mode, shutting down analog but leaving the oscillator running.
 func (adc *ADS1256) Standby() error {
-	return adc.sendCommand(CMDSTANDBY)
+	return adc.sendCommand(CMD_STANDBY)
 }
 
 // Wakeup from SYNC or STANDBY mode.
 func (adc *ADS1256) Wakeup() error {
 	// ADS1256 has two forms (0x00 or 0xFF). We'll just send 0x00 for clarity.
-	return adc.sendCommand(CMDWAKEUP)
+	return adc.sendCommand(CMD_WAKEUP)
 }
 
 // Sync sends a SYNC command to synchronize the ADC's data output.
 func (adc *ADS1256) Sync() error {
-	return adc.sendCommand(CMDSYNC)
+	return adc.sendCommand(CMD_SYNC)
 }
 
 // PowerDown pulls the PWDN pin low if setPWDN is provided.
@@ -253,7 +253,7 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 		return 0, err
 	}
 
-	_, err := adc.Write([]byte{CMDRDATA})
+	_, err := adc.Write([]byte{CMD_RDATA})
 	if err != nil {
 		return 0, errors.Join(err, adc.setCSHigh())
 	}
@@ -274,7 +274,7 @@ func (adc *ADS1256) readDataByCommand() (int32, error) {
 }
 
 // ReadChannel configures the multiplexer to read from (ainP, ainN),
-// then issues a [CMDSYNC]->[CMDWAKEUP] sequence, and finally reads the 24-bit raw value.
+// then issues a [CMD_SYNC]->[CMD_WAKEUP] sequence, and finally reads the 24-bit raw value.
 //
 // Example usage:
 //
@@ -290,7 +290,7 @@ func (adc *ADS1256) ReadChannel(ainP, ainN Channel) (int32, error) {
 	// Write to MUX register: top 4 bits => ainP, bottom 4 => ainN
 	muxVal := byte((ainP << 4) | (ainN & 0x0F))
 
-	if err := adc.writeRegister(RegMUX, muxVal); err != nil {
+	if err := adc.writeRegister(REG_MUX, muxVal); err != nil {
 		adc.mu.Unlock()
 		return 0, fmt.Errorf("failed to set MUX: %v", err)
 	}
