@@ -6,12 +6,10 @@ import (
 	"time"
 )
 
-func (ft *FT232H) SetDRDY(pin uint) {
+func (ft *FT232H) SetDRDY(pin uint) error {
 	ft.drdyPin = ft232h.CPin(pin)
-	if err := ft.GPIO.ConfigPin(ft.drdyPin, ft232h.Output, true); err != nil {
-		fmt.Printf("failed to configure DRDY pin: %v\n", err)
-	}
 	fmt.Printf("drdy set: %s, pos: %d\n", ft.drdyPin.String(), ft.drdyPin.Pos())
+	return ft.GPIO.ConfigPin(ft.drdyPin, ft232h.Input, true)
 }
 
 func (ft *FT232H) WaitDRDY() error {
@@ -28,9 +26,10 @@ func (ft *FT232H) WaitDRDY() error {
 	return nil
 }
 
-func (ft *FT232H) SetPWDN(pin uint) {
+func (ft *FT232H) SetPWDN(pin uint) error {
 	ft.pwdnPin = ft232h.CPin(pin)
 	fmt.Printf("pwdn set: %s, pos: %d\n", ft.pwdnPin.String(), ft.pwdnPin.Pos())
+	return ft.GPIO.ConfigPin(ft.pwdnPin, ft232h.Output, false)
 }
 
 func (ft *FT232H) PowerDown() error {
@@ -53,9 +52,10 @@ func (ft *FT232H) PowerUp() error {
 	return nil
 }
 
-func (ft *FT232H) SetCSPin(pin uint) {
+func (ft *FT232H) SetCSPin(pin uint) error {
 	ft.csPin = ft232h.CPin(pin)
 	fmt.Printf("cs set: %s, pos: %d\n", ft.csPin.String(), ft.csPin.Pos())
+	return ft.GPIO.ConfigPin(ft.csPin, ft232h.Output, false)
 }
 
 func (ft *FT232H) SetCS(high bool) error {
