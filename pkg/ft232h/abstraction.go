@@ -8,8 +8,9 @@ import (
 
 func (ft *FT232H) SetDRDY(pin uint) error {
 	ft.drdyPin = ft232h.CPin(pin)
+	time.Sleep(5 * time.Millisecond)
 	fmt.Printf("drdy set: %s, pos: %d\n", ft.drdyPin.String(), ft.drdyPin.Pos())
-	return ft.GPIO.ConfigPin(ft.drdyPin, ft232h.Input, true)
+	return ft.GPIO.ConfigPin(ft.drdyPin, ft232h.Input, false)
 }
 
 func (ft *FT232H) DRDYPin() ft232h.CPin {
@@ -25,13 +26,14 @@ func (ft *FT232H) WaitDRDY() error {
 		if !hl {
 			break
 		}
-		time.Sleep(100 * time.Microsecond)
+		time.Sleep(5 * time.Microsecond)
 	}
 	return nil
 }
 
 func (ft *FT232H) SetPWDN(pin uint) error {
 	ft.pwdnPin = ft232h.CPin(pin)
+	time.Sleep(5 * time.Millisecond)
 	fmt.Printf("pwdn set: %s, pos: %d\n", ft.pwdnPin.String(), ft.pwdnPin.Pos())
 	return ft.GPIO.ConfigPin(ft.pwdnPin, ft232h.Output, false)
 }
