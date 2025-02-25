@@ -12,6 +12,10 @@ func (ft *FT232H) SetDRDY(pin uint) error {
 	return ft.GPIO.ConfigPin(ft.drdyPin, ft232h.Input, true)
 }
 
+func (ft *FT232H) DRDYPin() ft232h.CPin {
+	return ft.drdyPin
+}
+
 func (ft *FT232H) WaitDRDY() error {
 	for {
 		hl, err := ft.FT232H.GPIO.Get(ft.drdyPin)
@@ -30,6 +34,10 @@ func (ft *FT232H) SetPWDN(pin uint) error {
 	ft.pwdnPin = ft232h.CPin(pin)
 	fmt.Printf("pwdn set: %s, pos: %d\n", ft.pwdnPin.String(), ft.pwdnPin.Pos())
 	return ft.GPIO.ConfigPin(ft.pwdnPin, ft232h.Output, false)
+}
+
+func (ft *FT232H) PWDNPin() ft232h.CPin {
+	return ft.pwdnPin
 }
 
 func (ft *FT232H) PowerDown() error {
@@ -56,6 +64,10 @@ func (ft *FT232H) SetCSPin(pin uint) error {
 	ft.csPin = ft232h.CPin(pin)
 	fmt.Printf("cs set: %s, pos: %d\n", ft.csPin.String(), ft.csPin.Pos())
 	return ft.GPIO.ConfigPin(ft.csPin, ft232h.Output, false)
+}
+
+func (ft *FT232H) CSPin() ft232h.CPin {
+	return ft.csPin
 }
 
 func (ft *FT232H) SetCS(high bool) error {
